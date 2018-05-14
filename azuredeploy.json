@@ -1,0 +1,298 @@
+﻿{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "aadClientID": {
+      "type": "String",
+      "metadata": {
+        "description": "Client ID of AAD app which has permissions to KeyVault"
+      }
+    },
+    "aadClientSecret": {
+      "type": "SecureString",
+      "metadata": {
+        "description": "Client Secret of AAD app which has permissions to KeyVault"
+      }
+    },
+    "diskFormatQuery": {
+      "defaultValue": "",
+      "type": "String",
+      "metadata": {
+        "description": "the query string used to identify the disks to format and encrypt. This parameter only works when you set the EncryptionOperation as EnableEncryptionFormat. For example, passing [{\"dev_path\":\"/dev/md0\",\"name\":\"encryptedraid\",\"file_system\":\"ext4\"}] will format /dev/md0, encrypt it and mount it at /mnt/dataraid. This parameter should only be used for RAID devices. The specified device must not have any existing filesystem on it."
+      }
+    },
+    "encryptionOperation": {
+      "defaultValue": "EnableEncryption",
+      "allowedValues": [
+        "EnableEncryption",
+        "EnableEncryptionFormat"
+      ],
+      "type": "String",
+      "metadata": {
+        "description": "EnableEncryption would encrypt the disks in place and EnableEncryptionFormat would format the disks directly"
+      }
+    },
+    "volumeType": {
+      "defaultValue": "All",
+      "allowedValues": [
+        "OS",
+        "Data",
+        "All"
+      ],
+      "type": "String",
+      "metadata": {
+        "description": "Defines which drives should be encrypted. OS encryption is supported on RHEL 7.2, CentOS 7.2 &amp;amp;amp;amp; Ubuntu 16.04."
+      }
+    },
+    "keyEncryptionKeyURL": {
+      "defaultValue": "",
+      "type": "String",
+      "metadata": {
+        "description": "URL of the KeyEncryptionKey used to encrypt the volume encryption key"
+      }
+    },
+    "keyVaultName": {
+      "type": "String",
+      "metadata": {
+        "description": "Name of the KeyVault to place the volume encryption key"
+      }
+    },
+    "keyVaultResourceGroup": {
+      "type": "String",
+      "metadata": {
+        "description": "Resource group of the KeyVault"
+      }
+    },
+    "passphrase": {
+      "defaultValue": "",
+      "type": "SecureString",
+      "metadata": {
+        "description": "The passphrase for the disks"
+      }
+    },
+    "sequenceVersion": {
+      "defaultValue": "1",
+      "type": "String",
+      "metadata": {
+        "description": "sequence version of the bitlocker operation. Increment this everytime an operation is performed on the same VM"
+      }
+    },
+    "vmname": {
+      "type": "String",
+      "metadata": {
+        "description": "Name of the VM"
+      }
+    },
+    "storageaccname": {
+      "type": "String",
+      "metadata": {
+        "description": "name of storage account"
+      }
+    },
+    "storageaccountdiag": {
+      "type": "String",
+      "metadata": {
+        "description": "name of storage account for dianostics"
+      }
+    },
+    "container name": {
+      "type": "String",
+      "metadata": {
+        "description": "storage container name "
+      }
+    },
+    "adminUsername": {
+      "type": "String",
+      "metadata": {
+        "description": "admin user name"
+      }
+    },
+    "adminPassword": {
+      "type": "SecureString",
+      "metadata": {
+        "description": "admin password"
+      }
+    },
+    "vmsize": {
+      "type": "String",
+      "metadata": {
+        "description": "vmsize eg Standard_A7"
+      }
+    },
+    "vnetname": {
+      "type": "String",
+      "metadata": {
+        "description": "name of vnet"
+      }
+    },
+    "subnetname": {
+      "type": "String",
+      "metadata": {
+        "description": "name of subnet"
+      }
+    }
+  },
+  "variables": {
+    "imagePublisher": "RedHat",
+    "imageOffer": "RHEL",
+    "OSDiskName": "[concat(uniquestring(parameters('vmname')), 'ecosdisk')]",
+    "nicName": "[concat(uniquestring(parameters('vmname')), 'encnic')]",
+    "addressPrefix": "10.0.0.0/16",
+    "storageAccountType": "Standard_LRS",
+    "publicIPAddressName": "[concat(uniquestring(parameters('vmname')), 'publicip')]",
+    "publicIPAddressType": "Dynamic",
+    "vmStorageAccountContainerName": "vhds",
+    "vmSize": "Standard_DS2",
+    "virtualNetworkName": "[concat(uniquestring(parameters('vmname')), 'vnet')]",
+    "vnetID": "[resourceId('Microsoft.Network/virtualNetworks',parameters('vnetname'))]",
+    "subnetRef": "[concat(variables('vnetID'),'/subnets/',parameters('subnetName'))]",
+    "extensionName": "AzureDiskEncryptionForLinux",
+    "extensionVersion": "0.1",
+    "keyEncryptionAlgorithm": "RSA-OAEP",
+    "keyVaultURL": "[concat('https://', parameters('keyVaultName'), '.vault.azure.net/')]",
+    "keyVaultResourceID": "[concat(subscription().id,'/resourceGroups/',parameters('keyVaultResourceGroup'),'/providers/Microsoft.KeyVault/vaults/', parameters('keyVaultName'))]",
+    "enableDiskEncriptionLinkedTemplateUri": "https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/201-encrypt-running-linux-vm/updatevm-kek.json"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Network/publicIPAddresses",
+      "name": "[variables('publicIPAddressName')]",
+      "apiVersion": "2015-06-15",
+      "location": "[resourceGroup().location]",
+      "properties": {
+        "publicIPAllocationMethod": "[variables('publicIPAddressType')]"
+      }
+    },
+    {
+      "type": "Microsoft.Network/networkInterfaces",
+      "name": "[variables('nicName')]",
+      "apiVersion": "2015-06-15",
+      "location": "[resourceGroup().location]",
+      "properties": {
+        "ipConfigurations": [
+          {
+            "name": "ipconfig1",
+            "properties": {
+              "privateIPAllocationMethod": "Dynamic",
+              "publicIPAddress": {
+                "id": "[resourceId('Microsoft.Network/publicIPAddresses',variables('publicIPAddressName'))]"
+              },
+              "subnet": {
+                "id": "[variables('subnetRef')]"
+              }
+            }
+          }
+        ]
+      },
+      "dependsOn": [
+        "[concat('Microsoft.Network/publicIPAddresses/', variables('publicIPAddressName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Compute/virtualMachines",
+      "name": "[parameters('vmname')]",
+      "apiVersion": "2015-06-15",
+      "location": "[resourceGroup().location]",
+      "properties": {
+        "hardwareProfile": {
+          "vmSize": "[parameters('vmSize')]"
+        },
+        "osProfile": {
+          "computerName": "[parameters('vmname')]",
+          "adminUsername": "[parameters('adminUsername')]",
+          "adminPassword": "[parameters('adminPassword')]"
+        },
+        "storageProfile": {
+          "imageReference": {
+            "publisher": "[variables('imagePublisher')]",
+            "offer": "[variables('imageOffer')]",
+            "sku": "7.4",
+            "version": "latest"
+          },
+          "osDisk": {
+            "name": "osdisk",
+            "vhd": {
+              "uri": "[concat(reference(concat('Microsoft.Storage/storageAccounts/', parameters('storageaccname')), '2015-06-15').primaryEndpoints.blob, variables('vmStorageAccountContainerName'),'/',variables('OSDiskName'),'.vhd')]"
+            },
+            "caching": "ReadWrite",
+            "createOption": "FromImage"
+          },
+          "dataDisks": [ ]
+        },
+        "networkProfile": {
+          "networkInterfaces": [
+            {
+              "id": "[resourceId('Microsoft.Network/networkInterfaces',variables('nicName'))]"
+            }
+          ]
+        },
+        "diagnosticsProfile": {
+          "bootDiagnostics": {
+            "enabled": "true",
+            "storageUri": "[reference(concat('Microsoft.Storage/storageAccounts/', parameters('storageaccountdiag')), '2015-06-15').primaryEndpoints.blob]"
+          }
+        }
+      },
+      "dependsOn": [
+        "[concat('Microsoft.Network/networkInterfaces/', variables('nicName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Compute/virtualMachines/extensions",
+      "name": "[concat(parameters('vmname'),'/', variables('extensionName'))]",
+      "apiVersion": "2015-06-15",
+      "location": "[resourceGroup().location]",
+      "properties": {
+        "protectedSettings": {
+          "AADClientSecret": "[parameters('aadClientSecret')]",
+          "Passphrase": "[parameters('passphrase')]"
+        },
+        "publisher": "Microsoft.Azure.Security",
+        "settings": {
+          "AADClientID": "[parameters('aadClientID')]",
+          "DiskFormatQuery": "[parameters('diskFormatQuery')]",
+          "EncryptionOperation": "[parameters('encryptionOperation')]",
+          "KeyEncryptionAlgorithm": "[variables('keyEncryptionAlgorithm')]",
+          "KeyEncryptionKeyURL": "[parameters('keyEncryptionKeyURL')]",
+          "KeyVaultURL": "[variables('keyVaultURL')]",
+          "SequenceVersion": "[parameters('sequenceVersion')]",
+          "VolumeType": "[parameters('volumeType')]"
+        },
+        "type": "AzureDiskEncryptionForLinux",
+        "typeHandlerVersion": "[variables('extensionVersion')]"
+      },
+      "dependsOn": [
+        "[concat('Microsoft.Compute/virtualMachines/', parameters('vmname'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Resources/deployments",
+      "name": "[concat(parameters('vmname'), 'updateVm')]",
+      "apiVersion": "2015-01-01",
+      "properties": {
+        "mode": "Incremental",
+        "parameters": {
+          "keyEncryptionKeyURL": {
+            "value": "[parameters('keyEncryptionKeyURL')]"
+          },
+          "keyVaultResourceID": {
+            "value": "[variables('keyVaultResourceID')]"
+          },
+          "keyVaultSecretUrl": {
+            "value": "[reference(resourceId('Microsoft.Compute/virtualMachines/extensions',  parameters('vmname'), variables('extensionName'))).instanceView.statuses[0].message]"
+          },
+          "vmName": {
+            "value": "[parameters('vmname')]"
+          }
+        },
+        "templateLink": {
+          "contentVersion": "1.0.0.0",
+          "uri": "[variables('enableDiskEncriptionLinkedTemplateUri')]"
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Compute/virtualMachines/extensions',  parameters('vmname'), variables('extensionName'))]"
+      ]
+    }
+  ]
+}
