@@ -71,8 +71,9 @@
       "type": "string"
     },
     "_linkedTemplateDiskEncriptionUri": {
-      "defaultvalue": "https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/201-encrypt-running-linux-vm/updatevm-kek.json",
+      
       "type": "string",
+      "defaultvalue": "https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/201-encrypt-running-linux-vm/updatevm-kek.json",
       "metadata": {
         "description": "location of the linked template"
       }
