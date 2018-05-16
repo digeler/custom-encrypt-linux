@@ -1,4 +1,4 @@
-﻿{
+{
   "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
   "contentVersion": "1.0.0.0",
   "parameters": {
@@ -119,10 +119,10 @@
         "description": "vmsize eg Standard_A7"
       }
     },
-    "vnetname": {
+    "vnetID": {
       "type": "String",
       "metadata": {
-        "description": "name of vnet"
+        "description": "put the full vnetid"
       }
     },
     "subnetname": {
@@ -143,9 +143,8 @@
     "publicIPAddressType": "Dynamic",
     "vmStorageAccountContainerName": "vhds",
     "vmSize": "Standard_DS2",
-    "virtualNetworkName": "[concat(uniquestring(parameters('vmname')), 'vnet')]",
-    "vnetID": "[resourceId('Microsoft.Network/virtualNetworks',parameters('vnetname'))]",
-    "subnetRef": "[concat(variables('vnetID'),'/subnets/',parameters('subnetName'))]",
+    "virtualNetworkName": "[concat(uniquestring(parameters('vmname')), 'vnet')]",    
+    "subnetRef": "[concat(parameters('vnetID'),'/subnets/',parameters('subnetName'))]",
     "extensionName": "AzureDiskEncryptionForLinux",
     "extensionVersion": "0.1",
     "keyEncryptionAlgorithm": "RSA-OAEP",
